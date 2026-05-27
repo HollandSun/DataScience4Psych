@@ -1,57 +1,107 @@
-# Exercise 1: Load and explore the Kansas COVID-19 mask mandate data
+# Exercise 1: Download raw data from USAFacts URLs (lab Exercise 3)
+# Note: test files for lab07 use internal numbering — test-ex1 covers lab Exercise 3 (data acquisition).
 
-test_that("Ex 1: df object exists", {
-  expect_true(exists("df"),
-              info = "Create a data frame called 'df' by reading the Kansas COVID rolling average data"
+test_that("Ex 1: cases_raw object exists", {
+  expect_true(exists("cases_raw"),
+    info = "Create a data frame called 'cases_raw' by reading the USAFacts COVID confirmed cases CSV from its URL"
   )
 })
 
-test_that("Ex 1: df is a data frame", {
-  skip_if(!exists("df"))
-  expect_true(is.data.frame(df),
-              info = "Make sure 'df' is a data frame")
+test_that("Ex 1: cases_raw is a data frame", {
+  skip_if(!exists("cases_raw"))
+  expect_true(is.data.frame(cases_raw),
+    info = "Make sure 'cases_raw' is a data frame"
+  )
 })
 
-test_that("Ex 1: df has date column", {
-  skip_if(!exists("df"))
-  expect_true("date" %in% names(df),
-              info = "Make sure your data frame 'df' has a column named 'date'")
+test_that("Ex 1: cases_raw has expected identifier columns", {
+  skip_if(!exists("cases_raw"))
+  expect_true(all(c("countyFIPS", "State") %in% names(cases_raw)),
+    info = "Make sure 'cases_raw' has countyFIPS and State columns"
+  )
 })
 
-test_that("Ex 1: df has mask_mandate column", {
-  skip_if(!exists("df"))
-  expect_true("mask_mandate" %in% names(df),
-              info = "Make sure your data frame 'df' has a column named 'mask_mandate'")
+test_that("Ex 1: cases_raw has County Name column", {
+  skip_if(!exists("cases_raw"))
+  expect_true("County Name" %in% names(cases_raw),
+    info = "Make sure 'cases_raw' has a 'County Name' column"
+  )
 })
 
-test_that("Ex 1: df has rolling_avg column", {
-  skip_if(!exists("df"))
-  expect_true("rolling_avg" %in% names(df),
-              info = "Make sure your data frame 'df' has a column named 'rolling_avg'")
+test_that("Ex 1: cases_raw covers all US counties (many rows)", {
+  skip_if(!exists("cases_raw"))
+  expect_true(nrow(cases_raw) > 3000,
+    info = "cases_raw should cover all US counties — expected more than 3000 rows"
+  )
 })
 
-test_that("Ex 1: df has exactly 2 mask_mandate groups", {
-  skip_if(!exists("df") || !"mask_mandate" %in% names(df))
-  n_groups <- dplyr::n_distinct(df$mask_mandate)
-  expect_equal(n_groups, 2,
-               info = "Your 'df' should have exactly 2 mask mandate groups (mask vs no mask)")
+test_that("Ex 1: cases_raw is in wide format with many date columns", {
+  skip_if(!exists("cases_raw"))
+  # Wide format: identifier columns + one column per date
+  expect_true(ncol(cases_raw) > 100,
+    info = "cases_raw should be in wide format with one column per date — expected more than 100 columns total"
+  )
 })
 
-test_that("Ex 1: df has multiple dates (time series data)", {
-  skip_if(!exists("df") || !"date" %in% names(df))
-  n_dates <- dplyr::n_distinct(df$date)
-  expect_true(n_dates > 10,
-              info = "Your 'df' should contain multiple dates for a time series")
+test_that("Ex 1: cases_raw countyFIPS column is numeric or integer", {
+  skip_if(!exists("cases_raw") || !"countyFIPS" %in% names(cases_raw))
+  expect_true(is.numeric(cases_raw$countyFIPS) || is.integer(cases_raw$countyFIPS),
+    info = "countyFIPS should be a numeric or integer column (FIPS codes)"
+  )
 })
 
-test_that("Ex 1: rolling_avg values are numeric", {
-  skip_if(!exists("df") || !"rolling_avg" %in% names(df))
-  expect_true(is.numeric(df$rolling_avg),
-              info = "Make sure 'rolling_avg' is numeric")
+test_that("Ex 1: pop_raw object exists", {
+  expect_true(exists("pop_raw"),
+    info = "Create a data frame called 'pop_raw' by reading the USAFacts population CSV from its URL"
+  )
 })
 
-test_that("Ex 1: rolling_avg values are non-negative", {
-  skip_if(!exists("df") || !"rolling_avg" %in% names(df))
-  expect_true(all(df$rolling_avg >= 0, na.rm = TRUE),
-              info = "Check that 'rolling_avg' values are non-negative (case rates should be >= 0)")
+test_that("Ex 1: pop_raw is a data frame", {
+  skip_if(!exists("pop_raw"))
+  expect_true(is.data.frame(pop_raw),
+    info = "Make sure 'pop_raw' is a data frame"
+  )
+})
+
+test_that("Ex 1: pop_raw has population column", {
+  skip_if(!exists("pop_raw"))
+  expect_true("population" %in% names(pop_raw),
+    info = "Make sure 'pop_raw' has a column named 'population'"
+  )
+})
+
+test_that("Ex 1: pop_raw has countyFIPS and State columns", {
+  skip_if(!exists("pop_raw"))
+  expect_true(all(c("countyFIPS", "State") %in% names(pop_raw)),
+    info = "Make sure 'pop_raw' has countyFIPS and State columns for joining"
+  )
+})
+
+test_that("Ex 1: pop_raw has County Name column", {
+  skip_if(!exists("pop_raw"))
+  expect_true("County Name" %in% names(pop_raw),
+    info = "Make sure 'pop_raw' has a 'County Name' column"
+  )
+})
+
+test_that("Ex 1: pop_raw covers all US counties (many rows)", {
+  skip_if(!exists("pop_raw"))
+  expect_true(nrow(pop_raw) > 3000,
+    info = "pop_raw should cover all US counties — expected more than 3000 rows"
+  )
+})
+
+test_that("Ex 1: pop_raw population column is numeric", {
+  skip_if(!exists("pop_raw") || !"population" %in% names(pop_raw))
+  expect_true(is.numeric(pop_raw$population),
+    info = "population column in pop_raw should be numeric"
+  )
+})
+
+test_that("Ex 1: pop_raw population values are positive", {
+  skip_if(!exists("pop_raw") || !"population" %in% names(pop_raw))
+  pop_vals <- pop_raw$population[!is.na(pop_raw$population) & pop_raw$population > 0]
+  expect_true(length(pop_vals) > 3000,
+    info = "Most population values in pop_raw should be positive (more than 3000 counties with positive population)"
+  )
 })

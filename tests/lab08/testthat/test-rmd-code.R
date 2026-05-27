@@ -1,53 +1,227 @@
-# Rmd code-presence checks: verify student wrote R code, not just prose
+# Per-exercise Rmd content checks for lab 8
 
-test_that("Rmd file exists in working directory", {
-  expect_true(length(.rmd_files) > 0,
-              info = "Submit an Rmd file in your working directory")
+test_that("Exercise 1 contains URL-fixing or scraping code", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "str_replace\\(", "read_html\\(", "html_nodes\\(",
+    "first_url", "^```\\{r"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Include R code for Exercise 1 (e.g., str_replace() to fix relative links, or read_html())"
+  )
 })
 
-test_that("Rmd contains a minimum number of R code chunks", {
-  skip_if(length(.rmd_content) == 0)
-  chunk_starts <- stringr::str_detect(.rmd_content, "^```\\{r") |> which()
-  expect_true(length(chunk_starts) >= 3,
-              info = sprintf("Include at least 3 R code chunks in your Rmd, found %d", length(chunk_starts)))
+test_that("Exercise 2 contains artist-scraping code", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "\\.iteminfo", "artist", "html_nodes\\(|html_node\\(|html_elements\\(",
+    "html_text\\(|html_attr\\("
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Include code to scrape artist names with rvest for Exercise 2"
+  )
 })
 
-test_that("R code chunks contain actual code (not all empty)", {
-  skip_if(length(.rmd_content) == 0)
-  chunk_starts <- stringr::str_detect(.rmd_content, "^```\\{r") |> which()
-  chunk_ends <- stringr::str_detect(.rmd_content, "^```$") |> which()
-  skip_if(length(chunk_starts) == 0, "No code chunks found")
-  non_empty <- 0
-  for (i in seq_along(chunk_starts)) {
-    end_candidates <- chunk_ends[chunk_ends > chunk_starts[i]]
-    if (length(end_candidates) == 0) next
-    end_line <- end_candidates[1]
-    if (end_line - chunk_starts[i] > 1) {
-      chunk_body <- .rmd_content[(chunk_starts[i] + 1):(end_line - 1)]
-      code_lines <- chunk_body[!stringr::str_detect(chunk_body, "^\\s*$") & !stringr::str_detect(chunk_body, "^\\s*#")]
-      if (length(code_lines) > 0) non_empty <- non_empty + 1
-    }
-  }
-  expect_true(non_empty >= 2,
-              info = sprintf("Write actual R code in at least 2 code chunks, found %d non-empty", non_empty))
+test_that("Exercise 3 contains tibble construction code", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "tibble\\(", "data\\.frame\\(",
+    "first_ten", "title.*artist.*link|artist.*link.*title"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Include code to create a tibble with title, artist, and link columns for Exercise 3"
+  )
 })
 
-# Per-exercise checks
+test_that("Exercise 4 references a second page URL", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "second_url", "offset=10", "second_ten"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Define second_url (offset=10) and scrape second_ten in your Rmd for Exercise 4"
+  )
+})
 
-test_that("Exercise 1 section contains R code", {
-  skip_if(length(.rmd_content) == 0)
-  potential_answers <- c("^```\\{r", "`r\\s+[^`]+`")
+test_that("Exercise 5 defines the scrape_page function", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "scrape_page\\s*<-\\s*function",
+    "function\\(url\\)",
+    "scrape_page"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE, ,
+    info = "Define the scrape_page function in your Rmd for Exercise 5"
+  )
+})
+
+test_that("Exercise 6 tests scrape_page with first_url and second_url", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "scrape_page\\(first_url\\)",
+    "scrape_page\\(second_url\\)",
+    "scrape_page\\(",
+    "map_dfr\\([^)]*scrape_page|map\\([^)]*scrape_page|lapply\\([^)]*scrape_page"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Call scrape_page() to test your function on first_url and/or second_url for Exercise 6"
+  )
+})
+
+test_that("Exercise 7 contains URL list construction code", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "paste0\\(", "seq\\(", "urls\\s*<-", "root"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Build the 'urls' vector with paste0() and seq() for Exercise 7"
+  )
+})
+
+test_that("Exercise 8 contains map iteration to build uoe_art", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "map_dfr|map_df\\b|map\\(",
+    "purrr",
+    "lapply",
+    "uoe_art"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Use map_dfr(urls, scrape_page) to scrape all pages into uoe_art for Exercise 8"
+  )
+})
+
+test_that("Exercise 9 contains write_csv or equivalent to save uoe_art", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "write_csv\\(", "write\\.csv\\(",
+    "saveRDS\\(", "save\\("
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Save uoe_art to the data folder using write_csv() for Exercise 9"
+  )
+})
+
+test_that("Exercise 10 contains separate() and year-extraction code", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "separate\\(", "str_extract\\(", "str_remove\\(",
+    "as\\.numeric\\(", "parse_number\\("
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Use separate() to split title/date and str_extract() to capture year for Exercise 10"
+  )
+})
+
+test_that("Exercise 11 contains skim() to report missing values", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "skim\\(", "skimr",
+    "summary\\(.*uoe_art", "glimpse\\("
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Use skim() to print a summary reporting how many pieces have missing artist or year for Exercise 11"
+  )
+})
+
+test_that("Exercise 12 contains a histogram of years", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "geom_histogram", "hist\\(",
+    "ggplot\\(.*aes.*year|aes\\(.*year"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Create a histogram of years using ggplot2 (geom_histogram()) for Exercise 12"
+  )
+})
+
+test_that("Exercise 13 contains year-correction code", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "mutate\\(",
+    "if_else\\(|ifelse\\(|case_when\\("
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Use mutate() with if_else() or case_when() to correct the out-of-range year for Exercise 13"
+  )
+})
+
+test_that("Exercise 14 contains code to identify the most common artist", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "count\\(", "n_distinct", "group_by.*artist|artist.*group_by",
+    "sort.*artist|arrange.*artist"
+  )
+  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
+  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
+  answer_in_rscript <- stringr::str_detect(.r_script_content, pattern) |> any()
+  answer_in_r <- answer_in_rscript | answer_in_rmd
+  expect_equal(answer_in_r, TRUE,
+    info = "Use count() or group_by()/summarise() to find the most frequently featured artist for Exercise 14"
+  )
+})
+
+test_that("Exercise 15 contains str_detect or filter code for 'child' in title", {
+  skip_if(length(.rmd_content) == 0 & length(.r_script_content) == 0)
+  potential_answers <- c(
+    "str_detect\\(", "grepl\\(",
+    "child", "filter\\("
+  )
   pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
   answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
   expect_equal(answer_in_rmd, TRUE,
-              info = "Include R code for Exercise 1 (a code chunk or inline R expression)")
-})
-
-test_that("Exercise 9 section contains R code", {
-  skip_if(length(.rmd_content) == 0)
-  potential_answers <- c("^```\\{r", "`r\\s+[^`]+`")
-  pattern <- paste0("(", paste(potential_answers, collapse = "|"), ")")
-  answer_in_rmd <- stringr::str_detect(.rmd_content, pattern) |> any()
-  expect_equal(answer_in_rmd, TRUE,
-              info = "Include R code for Exercise 9 (a code chunk or inline R expression)")
+    info = "Use filter() with str_detect() to find art pieces with 'child' in the title for Exercise 15"
+  )
 })

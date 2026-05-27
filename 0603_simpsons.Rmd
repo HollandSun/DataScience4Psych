@@ -1,0 +1,602 @@
+# LEC: Simpson's Paradox {#simpsons_paradox}
+
+```{r simpsons-setup, include = FALSE}
+source("common.R")
+ds4p_urls <- read.csv("./metadata/ds4p_urls.csv")
+```
+
+```{r simpsons-packages, echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(knitr)
+library(DT)
+library(gridExtra)
+```
+
+## Introducing Simpson's Paradox with a case study
+
+You can follow along with the slides [here][d14_confound] if you would like to open them full-screen.
+
+```{r confounds-include-video-simpson-intro, echo=FALSE,eval = knitr::is_latex_output()}
+embed_youtube_alt("My68gFE_usU")
+```
+```{r confounds-include-video-simpson-intro-html, echo=FALSE,eval = knitr::is_html_output()}
+"https://www.youtube.com/watch?v=My68gFE_usU" %>%
+  embed_url() %>%
+  use_align("center")
+```
+
+```{r confounds-include-slides-simpson-intro, echo=FALSE}
+slide_url(ds4p_urls, "d14_confound", "#42") %>%
+  include_url(height = "400px")
+```
+
+
+## Revisiting Simpson's Paradox
+
+```{r confounds-include-video-simpson-revisit, echo=FALSE,eval = knitr::is_latex_output()}
+embed_youtube_alt("vVq_G-a6K30")
+```
+```{r confounds-include-video-simpson-revisit-html, echo=FALSE,eval = knitr::is_html_output()}
+"https://www.youtube.com/watch?v=vVq_G-a6K30" %>%
+  embed_url() %>%
+  use_align("center")
+```
+
+```{r confounds-include-slides-simpson, echo=FALSE}
+slide_url(ds4p_urls, "d14_confound", "#62") %>%
+  include_url(height = "400px")
+```
+
+
+# ODD: Deeper into Simpson's Paradox
+
+This deep dive explores Simpson's Paradox: a phenomenon where a trend that appears in several groups of data reverses when the groups are combined. It is one of the most striking examples of confounding in action, and understanding it is essential for anyone who works with data. If you take away one thing from the confounding module, let it be this: **always ask whether there is a lurking variable that could reverse your conclusions.**
+
+## What Is Simpson's Paradox?
+
+Imagine you are comparing two hospitals. Hospital A has a higher overall survival rate than Hospital B. Sounds like Hospital A is better, right? But when you break the data down by patient severity --- mild vs. critical cases --- Hospital B actually has a higher survival rate in *both* categories. How is that possible?
+
+The answer is that Hospital B treats a much higher proportion of critical patients. Their overall rate gets dragged down by a harder caseload, even though they outperform Hospital A within each severity group. The **lurking variable** --- patient severity --- reverses the apparent conclusion.
+
+This reversal is called **Simpson's Paradox**, named after Edward Simpson who described it in 1951, though the idea was known earlier. It shows up everywhere: in medical studies, in education data, in legal cases, and yes, in psychology research.
+
+
+## The UC Berkeley Admissions Case
+
+The most famous real-world example comes from UC Berkeley's graduate admissions in 1973. At first glance, the university appeared to discriminate against women: men had a higher overall admission rate. But when researchers examined each department separately, women were admitted at equal or higher rates in most departments. The paradox arose because women disproportionately applied to more competitive departments.
+
+R has this dataset built in as `UCBAdmissions`. Let's explore it.
+
+```{r simpsons-ucb-data}
+# UCBAdmissions is a 3-dimensional array; let's convert to a tidy tibble
+ucb <- as_tibble(UCBAdmissions)
+ucb
+```
+
+### Overall admission rates by gender
+
+```{r simpsons-ucb-overall}
+ucb_overall <- ucb %>%
+  group_by(Gender, Admit) %>%
+  summarise(total = sum(n), .groups = "drop") %>%
+  group_by(Gender) %>%
+  mutate(prop = total / sum(total)) %>%
+  filter(Admit == "Admitted")
+
+ucb_overall
+```
+
+```{r simpsons-ucb-overall-plot, fig.width=5, fig.height=3.5, fig.cap="Overall admission rates by gender at UC Berkeley, 1973. Men appear to be admitted at a higher rate.", echo=FALSE}
+ggplot(ucb_overall, aes(x = Gender, y = prop, fill = Gender)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0, 0.55)) +
+  scale_fill_manual(values = c("#E48957", "#56B4E9")) +
+  labs(
+    title = "Overall Admission Rates by Gender",
+    subtitle = "UC Berkeley, 1973",
+    x = NULL, y = "Admission Rate"
+  ) +
+  theme_minimal()
+```
+
+It looks like men are admitted at a noticeably higher rate. But let's not stop here.
+
+### Admission rates by department
+
+```{r simpsons-ucb-by-dept}
+ucb_dept <- ucb %>%
+  group_by(Dept, Gender, Admit) %>%
+  summarise(total = sum(n), .groups = "drop") %>%
+  group_by(Dept, Gender) %>%
+  mutate(prop = total / sum(total)) %>%
+  filter(Admit == "Admitted")
+
+ucb_dept %>% arrange(Dept, Gender) %>%
+  kable(digits = 3, col.names = c("Department", "Gender", "Admitted", "Total", "Admission Rate"))
+```
+
+```{r simpsons-ucb-dept-plot, fig.width=8, fig.height=5, fig.cap="Admission rates by department and gender. In most departments, the gender gap disappears or reverses.", echo=FALSE}
+ggplot(ucb_dept, aes(x = Gender, y = prop, fill = Gender)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = scales::percent(prop, accuracy = 0.1)), vjust = -0.5, size = 3) +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1)) +
+  scale_fill_manual(values = c("#E48957", "#56B4E9")) +
+  facet_wrap(~Dept, nrow = 1) +
+  labs(
+    title = "Admission Rates by Department and Gender",
+    subtitle = "UC Berkeley, 1973",
+    x = NULL, y = "Admission Rate"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 8))
+```
+
+Now we can see what's really going on. In departments A and B, women are actually admitted at *higher* rates than men. In most other departments, the rates are roughly similar. The overall difference was driven by **where** people applied, not by **who** they were.
+
+### What explains the reversal?
+
+Women applied in larger numbers to departments with low admission rates (like departments C, D, E, and F), while men applied more heavily to departments with high admission rates (A and B). When you combine the data, the composition effect overwhelms the within-department pattern.
+
+```{r simpsons-ucb-applicants_dodge, fig.width=8, fig.height=8, fig.cap="Number of applicants by department and gender. Women applied disproportionately to more competitive departments.", echo=FALSE}
+ucb_applicants <- ucb %>%
+  group_by(Dept, Gender) %>%
+  summarise(applicants = sum(n), .groups = "drop")
+
+g_dodge <- ggplot(ucb_applicants, aes(x = Dept, y = applicants, fill = Gender)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("#E48957", "#56B4E9")) +
+  labs(
+    title = "Number of Applicants by Department",
+    subtitle = "UC Berkeley, 1973",
+    x = "Department", y = "Number of Applicants"
+  ) +
+  theme_minimal()
+
+g_stack <-   ggplot(ucb_applicants, aes(x = Dept, y = applicants, fill = Gender)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("#E48957", "#56B4E9")) +
+  labs(
+    title = "Number of Applicants by Department",
+    subtitle = "UC Berkeley, 1973",
+    x = "Department", y = "Number of Applicants"
+  ) +
+  theme_minimal()
+
+g_dodge
+
+```
+
+This is the confound in action: the lurking variable (department choice) is associated with *both* gender and admission rate.
+
+### The weighted average explanation {.unnumbered}
+
+Why does this reversal happen? The overall admission rate is a **weighted average** of the department-specific rates, where the weights are the number of applicants. Let's compute this explicitly:
+
+```{r simpsons-ucb-weighted-avg}
+# Compute department-level stats
+ucb_weights <- ucb %>%
+  group_by(Dept, Gender) %>%
+  summarise(
+    admitted = sum(n[Admit == "Admitted"]),
+    total = sum(n),
+    rate = admitted / total,
+    .groups = "drop"
+  )
+
+# Show the weighted average calculation for each gender
+ucb_weights %>%
+  group_by(Gender) %>%
+  summarise(
+    overall_rate = sum(admitted) / sum(total),
+    weighted_avg = sum(rate * total) / sum(total),
+    .groups = "drop"
+  ) %>%
+  kable(digits = 3, col.names = c("Gender", "Overall Rate", "Weighted Average"))
+```
+
+The two columns are identical --- the overall rate *is* the weighted average. The paradox occurs because women's weights (their application counts) are concentrated on low-admission departments, dragging their weighted average down even though their department-specific rates are comparable or better.
+
+To see this concretely, look at the weights themselves:
+
+```{r simpsons-ucb-weight-table, echo=FALSE}
+ucb_weights %>%
+  select(Dept, Gender, total, rate) %>%
+  pivot_wider(names_from = Gender, values_from = c(total, rate)) %>%
+  mutate(
+    pct_female = total_Female / (total_Female + total_Male),
+    rate_diff = rate_Female - rate_Male
+  ) %>%
+  kable(
+    digits = 3,
+    col.names = c("Dept", "N (Female)", "N (Male)",
+                   "Rate (Female)", "Rate (Male)",
+                   "% Female Applicants", "Rate Diff (F - M)")
+  )
+```
+
+Departments A and B have high admission rates but very few female applicants. Departments C through F have lower admission rates and a much higher share of female applicants. This imbalance in the *weights* is what drives the paradox.
+
+### Formal testing with chi-squared {.unnumbered}
+
+The visualization strongly suggests that the overall gender gap is an artifact of department composition. We can formalize this with statistical tests.
+
+First, a simple chi-squared test on the **aggregated** (marginal) table:
+
+```{r simpsons-ucb-chisq-marginal}
+# Build the 2x2 marginal table: Gender x Admit
+marginal_table <- ucb %>%
+  group_by(Gender, Admit) %>%
+  summarise(total = sum(n), .groups = "drop") %>%
+  pivot_wider(names_from = Admit, values_from = total) %>%
+  column_to_rownames("Gender") %>%
+  as.matrix()
+
+marginal_table
+
+chisq.test(marginal_table)
+```
+
+The marginal test is significant --- it detects the overall association between gender and admission. But this test ignores department entirely.
+
+Now we use the **Cochran--Mantel--Haenszel (CMH) test**, which tests for a conditional association between gender and admission *after controlling for department*:
+
+```{r simpsons-ucb-cmh}
+# UCBAdmissions is already a 3-way array in the right format for mantelhaen.test
+mantelhaen.test(UCBAdmissions)
+```
+
+The CMH test is *not* significant --- once we condition on department, there is no evidence of a systematic gender bias. This is the formal statistical test of what the faceted bar charts showed us visually.
+
+> **Key takeaway**: The marginal chi-squared says "there's a gender effect." The CMH test says "not after you account for department." The two tests answer different questions, and Simpson's Paradox is the reason they disagree.
+
+
+
+
+## A Simulated Example: Treatment Effectiveness
+
+The Berkeley data is compelling, but it can help to see the paradox constructed from scratch. Let's simulate a medical study where a treatment appears to be less effective overall, but is actually more effective within each patient group.
+
+```{r simpsons-sim-data}
+set.seed(42)
+
+# Mild cases: treatment works well, and most mild patients get the treatment
+mild <- tibble(
+  severity = "Mild",
+  group = c(rep("Treatment", 200), rep("Control", 50)),
+  recovered = c(rbinom(200, 1, 0.90), rbinom(50, 1, 0.85))
+)
+
+# Severe cases: treatment still works better, but fewer severe patients get it
+severe <- tibble(
+  severity = "Severe",
+  group = c(rep("Treatment", 50), rep("Control", 200)),
+  recovered = c(rbinom(50, 1, 0.50), rbinom(200, 1, 0.40))
+)
+
+patients <- bind_rows(mild, severe)
+```
+
+### Overall recovery rates
+
+```{r simpsons-sim-overall, echo=FALSE}
+patients %>%
+  group_by(group) %>%
+  summarise(
+    n = n(),
+    recovered = sum(recovered),
+    rate = mean(recovered)
+  ) %>%
+  kable(digits = 3, col.names = c("Group", "N", "Recovered", "Recovery Rate"))
+```
+
+The control group has a higher overall recovery rate! Should we conclude that the treatment is harmful?
+
+### Recovery rates by severity
+
+```{r simpsons-sim-by-severity, echo=FALSE}
+patients %>%
+  group_by(severity, group) %>%
+  summarise(
+    n = n(),
+    recovered = sum(recovered),
+    rate = mean(recovered),
+    .groups = "drop"
+  ) %>%
+  kable(digits = 3, col.names = c("Severity", "Group", "N", "Recovered", "Recovery Rate"))
+```
+
+Within *both* severity groups, the treatment group has a higher recovery rate. The paradox arises because the treatment group contains a disproportionate number of mild patients (who recover at high rates regardless), while the control group is loaded with severe patients.
+
+### Decomposing the arithmetic {.unnumbered}
+
+Let's trace through the weighted average calculation to see exactly how the reversal works:
+
+```{r simpsons-sim-arithmetic}
+sim_decomp <- patients %>%
+  group_by(group, severity) %>%
+  summarise(
+    n = n(),
+    rate = mean(recovered),
+    .groups = "drop"
+  ) %>%
+  group_by(group) %>%
+  mutate(
+    weight = n / sum(n),
+    contribution = rate * weight
+  )
+
+sim_decomp %>%
+  kable(
+    digits = 3,
+    col.names = c("Group", "Severity", "N", "Recovery Rate",
+                   "Weight (proportion)", "Weighted Contribution")
+  )
+```
+
+For the **Treatment** group, 80% of patients are mild (weight = 0.80) and 20% are severe (weight = 0.20). For the **Control** group, it's the reverse: 20% mild, 80% severe. The overall rate for each group is the sum of the weighted contributions. Even though Treatment wins in both severity categories, its overall rate is pulled up by a high proportion of "easy" (mild) patients, making the comparison misleading when you ignore severity.
+
+This is the core mechanic: **unequal weights on subgroups with different base rates can reverse an association.**
+
+```{r simpsons-sim-plot, fig.width=7, fig.height=4.5, fig.cap="Recovery rates by treatment group, overall and stratified by severity. The trend reverses when the lurking variable is accounted for.", echo=FALSE}
+# Prepare summary data
+sim_overall <- patients %>%
+  group_by(group) %>%
+  summarise(rate = mean(recovered), .groups = "drop") %>%
+  mutate(severity = "Overall")
+
+sim_by_severity <- patients %>%
+  group_by(severity, group) %>%
+  summarise(rate = mean(recovered), .groups = "drop")
+
+sim_combined <- bind_rows(sim_by_severity, sim_overall) %>%
+  mutate(severity = factor(severity, levels = c("Mild", "Severe", "Overall")))
+
+ggplot(sim_combined, aes(x = group, y = rate, fill = group)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1)) +
+  scale_fill_manual(values = c("#CA235F", "#56B4E9")) +
+  facet_wrap(~severity) +
+  labs(
+    title = "Recovery Rates: Overall vs. Stratified",
+    x = NULL, y = "Recovery Rate"
+  ) +
+  theme_minimal()
+```
+
+
+## Visualizing the Paradox with Scatter Plots
+
+Simpson's Paradox isn't limited to proportions. It can also appear in continuous data, where the direction of a correlation reverses when you account for a grouping variable.
+
+```{r simpsons-continuous-data}
+set.seed(123)
+
+# Three groups with positive within-group slopes but negative overall slope
+continuous_example <- bind_rows(
+  tibble(
+    group = "A",
+    x = rnorm(50, mean = 2, sd = 0.8),
+    y = 0.8 * x + rnorm(50, mean = 8, sd = 0.5)
+  ),
+  tibble(
+    group = "B",
+    x = rnorm(50, mean = 5, sd = 0.8),
+    y = 0.8 * x + rnorm(50, mean = 4, sd = 0.5)
+  ),
+  tibble(
+    group = "C",
+    x = rnorm(50, mean = 8, sd = 0.8),
+    y = 0.8 * x + rnorm(50, mean = 0, sd = 0.5)
+  )
+)
+```
+
+```{r simpsons-continuous-plot, fig.width=8, fig.height=4, fig.cap="Simpson's Paradox with continuous data. The overall trend (left) is negative, but the within-group trends (right) are all positive.", echo=FALSE}
+p_overall <- ggplot(continuous_example, aes(x = x, y = y)) +
+  geom_point(color = "gray40", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 1) +
+  labs(title = "Ignoring Groups", x = "X", y = "Y") +
+  theme_minimal()
+
+p_grouped <- ggplot(continuous_example, aes(x = x, y = y, color = group)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 1) +
+  scale_color_manual(values = c("#E48957", "#56B4E9", "#CA235F")) +
+  labs(title = "Accounting for Groups", x = "X", y = "Y", color = "Group") +
+  theme_minimal()
+
+library(gridExtra)
+grid.arrange(p_overall, p_grouped, ncol = 2)
+```
+
+In the left panel, the overall trend line slopes downward. In the right panel, every group's trend line slopes upward. The negative overall slope is entirely an artifact of the group structure.
+
+### Quantifying the sign flip with regression {.unnumbered}
+
+The plots make the reversal obvious, but let's put numbers on it. We'll fit two linear models: one that ignores group membership, and one that includes it as a covariate.
+
+```{r simpsons-continuous-regression}
+# Model 1: Ignore groups
+model_overall <- lm(y ~ x, data = continuous_example)
+
+# Model 2: Include group as a covariate
+model_grouped <- lm(y ~ x + group, data = continuous_example)
+```
+
+```{r simpsons-continuous-regression-results, echo=FALSE}
+# Compare the slope of x in each model
+tibble(
+  Model = c("Ignoring groups (y ~ x)", "Controlling for group (y ~ x + group)"),
+  `Slope of x` = c(coef(model_overall)["x"], coef(model_grouped)["x"]),
+  `p-value` = c(
+    summary(model_overall)$coefficients["x", "Pr(>|t|)"],
+    summary(model_grouped)$coefficients["x", "Pr(>|t|)"]
+  )
+) %>%
+  kable(digits = 4)
+```
+
+The slope of `x` is **negative** when we ignore groups, but **positive** (and closer to the true generating value of 0.8) when we control for group. This is the regression equivalent of what we saw in the plots. Adding the grouping variable to the model "adjusts" for the confound, revealing the true within-group relationship.
+
+You can also see the full model summaries:
+
+```{r simpsons-continuous-model-details}
+# Full summary of the grouped model
+tidy_overall <- broom::tidy(model_overall) %>%
+  mutate(model = "Ignoring groups")
+tidy_grouped <- broom::tidy(model_grouped) %>%
+  mutate(model = "Controlling for group")
+
+bind_rows(tidy_overall, tidy_grouped) %>%
+  select(model, term, estimate, std.error, p.value) %>%
+  kable(digits = 4, col.names = c("Model", "Term", "Estimate", "Std. Error", "p-value"))
+```
+
+Notice that in the grouped model, the `groupB` and `groupC` coefficients are large and negative --- these capture the different intercepts (mean levels) for each group, which is exactly the structure that created the paradox.
+
+
+## The Causal Structure: A Brief Look at DAGs
+
+Judea Pearl (who is listed in the module's suggested readings) formalized why Simpson's Paradox occurs using **directed acyclic graphs (DAGs)** --- diagrams that represent causal relationships between variables.
+
+In the Berkeley admissions example, the causal structure looks roughly like this:
+
+```{r simpsons-dag, echo=FALSE, fig.width=6, fig.height=3.5, fig.cap="A directed acyclic graph (DAG) for the Berkeley admissions example. Department is a mediator on the path from Gender to Admission, and also a confounder of the marginal Gender–Admission association."}
+# Build the DAG with base ggplot2 — no extra dependencies
+# Key: draw labels FIRST as a bottom layer, then arrows ON TOP so arrowheads are visible.
+# Shorten the segments so they start/end outside the label boxes.
+
+dag_nodes <- tibble(
+  label = c("Gender", "Department\nChoice", "Admission\nDecision"),
+  x = c(0, 2, 2),
+  y = c(1, 1, 0)
+)
+
+# Shortened edges: pull start/end points away from node centers
+# so arrowheads don't get hidden behind labels
+dag_edges <- tibble(
+  x    = c(0.45, 0.45, 2),
+  y    = c(1,    0.88, 0.82),
+  xend = c(1.35, 1.50, 2),
+  yend = c(1,    0.22, 0.22),
+  type = c("Gender to Dept", "Gender to Admission", "Dept to Admission")
+)
+
+ggplot() +
+  # Layer 1: Node labels (drawn first = behind)
+  geom_label(
+    data = dag_nodes,
+    aes(x = x, y = y, label = label),
+    size = 4, fontface = "bold",
+    fill = "white", linewidth = 0.5,
+    label.padding = unit(0.5, "lines")
+  ) +
+  # Layer 2: Arrows (drawn on top so arrowheads are visible)
+  geom_segment(
+    data = dag_edges,
+    aes(x = x, y = y, xend = xend, yend = yend),
+    arrow = arrow(length = unit(0.25, "cm"), type = "closed"),
+    linewidth = 0.8, color = "gray30"
+  ) +
+  # Edge annotations
+  annotate("text", x = 0.9, y = 1.12, label = "influences\napplication",
+           size = 2.8, color = "gray40") +
+  annotate("text", x = 2.30, y = 0.52, label = "determines\nadmission rate",
+           size = 2.8, color = "gray40") +
+  annotate("text", x = 0.55, y = 0.48, label = "direct effect\n(bias?)",
+           size = 2.8, color = "#CA235F", fontface = "italic") +
+  coord_cartesian(xlim = c(-0.8, 3.2), ylim = c(-0.3, 1.4)) +
+  theme_void()
+```
+
+Gender influences which department a student applies to (some departments attracted more men or women). Department choice, in turn, strongly influences admission (some departments are far more competitive). The direct arrow from Gender to Admission represents any actual gender bias in the process --- the question mark is the whole point of the analysis.
+
+The paradox arises because **Department** is a **confounding variable** --- it sits on a path between Gender and Admission. When we look at the marginal (overall) data, we are mixing together two effects: any direct gender effect *and* the indirect path through department choice. When we condition on Department (by looking within departments), we block the indirect path and isolate the direct effect.
+
+The DAG tells us *which* variable to condition on. This is not always obvious:
+
+- **Confounders** (common causes of both the predictor and the outcome) should generally be conditioned on --- this is what we did with Department.
+- **Colliders** (variables caused by both the predictor and the outcome) should generally *not* be conditioned on, because doing so can *create* a spurious association. This is a more advanced topic, but it's worth knowing that "always control for everything" is not the right strategy.
+
+For a thorough treatment, see Pearl's paper linked in the Further Reading section. The key insight for our purposes: **you need a causal model (even an informal one) to know whether aggregating or stratifying gives the right answer.**
+
+
+## Why This Matters for Psychology
+
+Simpson's Paradox is not just a statistical curiosity --- it has real consequences for research conclusions. Here are a few scenarios where psychologists should be especially vigilant:
+
+1. **Treatment effectiveness studies**: A therapy that works well for both mild and severe cases can appear ineffective overall if it is disproportionately used for severe cases (as in our simulation above).
+
+2. **Educational interventions**: A teaching method might improve outcomes for both high- and low-performing students, but if it's primarily adopted by schools with low-performing students, the aggregate data could suggest the method is harmful.
+
+3. **Cross-cultural comparisons**: A relationship between two variables might hold within every culture studied, but reverse when cultures are pooled together, because cultures differ on a third variable.
+
+4. **Longitudinal data**: Trends over time within individuals can look very different from trends across individuals at a single time point (an instance of the ecological fallacy, which is closely related).
+
+The general lesson: **aggregated data can mask or reverse relationships that exist at a finer level of analysis.** Whenever you see a surprising pattern in grouped data, ask yourself what happens when you break the data down further.
+
+
+## How to Protect Yourself
+
+Here are some practical strategies for avoiding Simpson's Paradox:
+
+- **Think about confounds before analyzing.** What variables might be associated with both your predictor and your outcome? This is the same logic behind experimental design and statistical control.
+
+- **Stratify or condition on potential confounders.** Look at your data broken down by relevant subgroups before drawing conclusions from aggregated numbers.
+
+- **Visualize at multiple levels.** Make plots that show both the overall pattern and the within-group patterns. Side-by-side comparisons (like the faceted plots above) make reversals immediately obvious.
+
+- **Be skeptical of aggregate statistics.** When someone reports an overall rate or trend, always ask: "Overall for whom? Compared to what? Broken down by what?"
+
+- **Use regression with appropriate controls.** Including confounding variables in a regression model is a formal way to "adjust" for them. We saw this with the continuous example above: the slope of `x` flipped sign when we added `group` to the model. For the Berkeley data, you could fit a logistic regression:
+
+```{r simpsons-protect-glm}
+# Logistic regression: does gender predict admission after controlling for department?
+ucb_long <- ucb %>%
+  uncount(n) # expand counts into individual rows
+
+# Without department
+glm_marginal <- glm(
+  (Admit == "Admitted") ~ Gender,
+  data = ucb_long, family = binomial
+)
+
+# With department
+glm_controlled <- glm(
+  (Admit == "Admitted") ~ Gender + Dept,
+  data = ucb_long, family = binomial
+)
+
+# Compare the Gender coefficient
+tibble(
+  Model = c("Gender only", "Gender + Department"),
+  `Gender (Male) coefficient` = c(coef(glm_marginal)["GenderMale"],
+                                   coef(glm_controlled)["GenderMale"]),
+  `Odds Ratio` = exp(c(coef(glm_marginal)["GenderMale"],
+                        coef(glm_controlled)["GenderMale"]))
+) %>%
+  kable(digits = 3)
+```
+
+Without department, the coefficient for `GenderMale` is positive (men have higher odds of admission). With department included, it shrinks substantially or becomes negative --- men no longer have an advantage, and may even have a slight disadvantage. This is the logistic regression analog of the CMH test we ran earlier.
+
+
+## Common Pitfalls
+
+1. **Assuming the aggregated result is always wrong.** Simpson's Paradox doesn't tell you which level of analysis is "correct" --- that depends on the research question. Sometimes the overall rate is what matters; sometimes the within-group rate is more informative. You need subject-matter knowledge to decide.
+
+2. **Over-stratifying.** If you break data into too many subgroups, you can end up with tiny samples and unreliable estimates. There's a balance between controlling for confounds and maintaining statistical power.
+
+3. **Ignoring the paradox entirely.** Many published studies report only aggregate results. If the data could plausibly be confounded by a grouping variable, the aggregate result could be misleading.
+
+
+## Further Reading
+
+- Judea Pearl, [Understanding Simpson's Paradox](https://ftp.cs.ucla.edu/pub/stat_ser/r414-reprint.pdf) --- the reading from the module materials, a classic treatment of the paradox from a causal inference perspective
+- [Wikipedia: Simpson's Paradox](https://en.wikipedia.org/wiki/Simpson%27s_paradox) --- thorough overview with many real-world examples
+- [Bickel, P. J., Hammel, E. A., & O'Connell, J. W. (1975). Sex bias in graduate admissions: Data from Berkeley. *Science*, *187*(4175), 398--404](https://www.science.org/doi/10.1126/science.187.4175.398) ([PDF](https://homepage.stat.uiowa.edu/~mbognar/1030/Bickel-Berkeley.pdf)) --- the original Berkeley admissions paper
+- [Kievit, R. A., Frankenhuis, W. E., Waldorp, L. J., & Borsboom, D. (2013). Simpson's paradox in psychological science: A practical guide. *Frontiers in Psychology*, *4*, 513](https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2013.00513/full) --- directly relevant to psychology research
+
+
+```{r courselinks, child="includes/courselinks.md"}
+```
